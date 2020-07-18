@@ -1,6 +1,7 @@
 package me.fabianfg.fortnitedownloader
 
 import me.fungames.jfortniteparse.exceptions.ParserException
+import me.fungames.jfortniteparse.ue4.pak.objects.FPakInfo
 import me.fungames.jfortniteparse.ue4.pak.reader.FPakArchive
 import me.fungames.jfortniteparse.ue4.versions.Ue4Version
 import java.util.concurrent.locks.ReentrantLock
@@ -41,7 +42,7 @@ class FManifestPakArchive : FPakArchive {
         currentChunkStartOffset = 0
     }
 
-    private constructor(file: FileManifest, build: MountedBuild, offsets : LongArray, size : Long, initialPos : Long, initialChunk : Int, initialChunkStartOffset : Int) : super(file.fileName) {
+    private constructor(file: FileManifest, build: MountedBuild, offsets : LongArray, size : Long, initialPos : Long, initialChunk : Int, initialChunkStartOffset : Int, pakInfo : FPakInfo) : super(file.fileName) {
         this.file = file
         this.build = build
         this.offsets = offsets
@@ -49,6 +50,7 @@ class FManifestPakArchive : FPakArchive {
         this.pos = initialPos
         this.currentChunk = initialChunk
         this.currentChunkStartOffset = initialChunkStartOffset
+        this.pakInfo = pakInfo
     }
 
     override fun clone() = FManifestPakArchive(
@@ -58,7 +60,8 @@ class FManifestPakArchive : FPakArchive {
         size,
         pos,
         currentChunk,
-        currentChunkStartOffset
+        currentChunkStartOffset,
+        pakInfo
     )
 
     override fun pakPos() = pos
