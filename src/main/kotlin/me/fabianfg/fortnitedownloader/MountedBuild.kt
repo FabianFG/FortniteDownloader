@@ -3,8 +3,16 @@ package me.fabianfg.fortnitedownloader
 import kotlinx.coroutines.*
 import mu.KotlinLogging
 import java.io.File
+import java.io.RandomAccessFile
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
+fun Manifest.mount(cachePath: File = File(".downloaderChunks"), chunkPoolCapacity: Int = 20, numThreads: Int = 20) =
+    MountedBuild(this, cachePath, chunkPoolCapacity, numThreads)
 
 class MountedBuild(val manifest : Manifest, val cachePath : File, chunkPoolCapacity : Int = 20, numThreads : Int = 20) : CoroutineScope {
 
@@ -18,6 +26,7 @@ class MountedBuild(val manifest : Manifest, val cachePath : File, chunkPoolCapac
 
         override fun newThread(r: Runnable): Thread {
             val thread = Thread(r, "MountedBuild-Thread-$count")
+            thread.isDaemon = true
             count++
             return thread
         }
@@ -86,5 +95,56 @@ class MountedBuild(val manifest : Manifest, val cachePath : File, chunkPoolCapac
         } }
         val results = runBlocking { tasks.awaitAll() }
         return results.all { it }
+    }
+
+    fun preloadChunks(fileName: String, progressUpdate: ((Int, Int) -> Unit)? = null) =
+        preloadChunks(manifest.fileManifestList.first { it.fileName == fileName }, progressUpdate)
+    fun preloadChunks(file: FileManifest, progressUpdate: ((Int, Int) -> Unit)? = null): Boolean {
+        val readChunks = AtomicInteger(0)
+        val tasks = file.chunkParts.mapIndexed { i, it -> async {
+            val chunkBuffer = storage.getChunkPart(it)
+            if (chunkBuffer == null) {
+                logger.error { "Failed to download chunk $i with size ${it.size} in file ${file.fileName}" }
+                return@async false
+            } else {
+                val count = readChunks.incrementAndGet()
+                progressUpdate?.invoke(count, file.chunkParts.size)
+                return@async true
+            }
+        } }
+        return runBlocking { tasks.awaitAll() }.all { it }
+    }
+
+    fun downloadEntireFile(fileName: String, output: File, progressUpdate: (Long, Long) -> Unit) =
+        downloadEntireFile(manifest.fileManifestList.first { it.fileName == fileName }, output, progressUpdate)
+    @Suppress("BlockingMethodInNonBlockingContext")
+    fun downloadEntireFile(file: FileManifest, output: File, progressUpdate: (Long, Long) -> Unit): Boolean {
+        val offsets = LongArray(file.chunkParts.size)
+        var totalSize = 0L
+        file.chunkParts.forEachIndexed { i, chunkPart ->
+            offsets[i] = totalSize
+            totalSize += chunkPart.size
+        }
+        //Create the file and align to correct size
+        val raFile = RandomAccessFile(output, "rw")
+        raFile.setLength(totalSize)
+        val fileWriteMutex = ReentrantLock()
+        val readBytes = AtomicLong(0L)
+        val tasks = file.chunkParts.mapIndexed { i, it -> async {
+            val chunkBuffer = storage.getChunkPart(it)
+            if (chunkBuffer == null) {
+                logger.error { "Failed to download chunk $i with size ${it.size} in file ${file.fileName}" }
+                return@async false
+            } else {
+                fileWriteMutex.withLock {
+                    raFile.seek(offsets[i])
+                    raFile.write(chunkBuffer)
+                }
+                val newReadBytes = readBytes.addAndGet(chunkBuffer.size.toLong())
+                progressUpdate.invoke(newReadBytes, totalSize)
+                return@async true
+            }
+        } }
+        return runBlocking { tasks.awaitAll() }.all { it }
     }
 }
