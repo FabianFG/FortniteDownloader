@@ -14,7 +14,7 @@ import kotlin.concurrent.withLock
 fun Manifest.mount(cachePath: File = File(".downloaderChunks"), chunkPoolCapacity: Int = 20, numThreads: Int = 20) =
     MountedBuild(this, cachePath, chunkPoolCapacity, numThreads)
 
-class MountedBuild(val manifest : Manifest, val cachePath : File, chunkPoolCapacity : Int = 20, numThreads : Int = 20) : CoroutineScope {
+class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downloaderChunks"), chunkPoolCapacity : Int = 20, numThreads : Int = 20) : CoroutineScope {
 
     companion object {
         val logger = KotlinLogging.logger("MountedBuild")
@@ -78,6 +78,8 @@ class MountedBuild(val manifest : Manifest, val cachePath : File, chunkPoolCapac
         return neededChunks
     }
 
+    fun fileRead(fileName: String, dest: ByteArray, destOffset: Int, offset: Long, length: Int) =
+        fileRead(manifest.fileManifestList.first { it.fileName == fileName }, dest, destOffset, offset, length)
     fun fileRead(file: FileManifest, dest: ByteArray, destOffset: Int, offset: Long, length: Int) =
         fileRead(file, dest, getNeededChunks(file, destOffset, offset, length))
 
