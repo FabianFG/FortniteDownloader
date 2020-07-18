@@ -147,6 +147,8 @@ class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downlo
                 return@async true
             }
         } }
-        return runBlocking { tasks.awaitAll() }.all { it }
+        val res = runBlocking { tasks.awaitAll() }.all { it }
+        raFile.close()
+        return res
     }
 }

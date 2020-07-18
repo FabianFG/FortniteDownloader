@@ -55,12 +55,6 @@ object ManifestLoader {
 class LauncherManifestDownloader {
     companion object {
         private const val LAUNCHER_TOKEN =  "MzRhMDJjZjhmNDQxNGUyOWIxNTkyMTg3NmRhMzZmOWE6ZGFhZmJjY2M3Mzc3NDUwMzlkZmZlNTNkOTRmYzc2Y2Y"
-        private val DEFAULT_CLIENT_DETAILS = ClientDetails(
-            listOf("arm64-v8a", "armeabi-v7a", "armeabi"),
-            28, 4, "Qualcomm Technologies, Inc MSM8996pro", false, "b02ed569-82d0-437c-a2dc-561670a82a06",
-            "OnePlus", 5738, "ONEPLUS A3003", "Android", "StandardInstall", "Adreno (TM) 530",
-            "OpenGL ES 3.2 V@331.0 (GIT@365e321, I294de8bafa) (Date:01/08/19)", true, true, listOf("ASTC", "ATC", "ETC2", "ETC1"), "4.0.2"
-        )
     }
     private val api = FortniteApi.Builder().loginAsUser(false).clientToken(LAUNCHER_TOKEN).buildAndLogin()
 
@@ -74,7 +68,7 @@ class LauncherManifestDownloader {
         return response.body()!!
     }
 
-    fun getMobileManifestInfo(platform: Platform, game: Game, clientDetails: ClientDetails = DEFAULT_CLIENT_DETAILS) : BuildResponse {
+    fun getMobileManifestInfo(platform: Platform, game: Game, clientDetails: ClientDetails) : BuildResponse {
         if (System.currentTimeMillis() >= api.accountExpiresAtMillis)
             api.loginClientCredentials()
         val response = api.launcherPublicService.getItemBuild(platform.name, game.id, game.name, game.label, clientDetails).execute()
@@ -88,8 +82,8 @@ class LauncherManifestDownloader {
         val manifestInfo = getManifestInfo(platform, game)
         return manifestInfo to downloadManifest(manifestInfo)
     }
-    fun downloadMobileManifest(platform: Platform, game: Game): Pair<BuildResponse, Manifest> {
-        val manifestInfo = getMobileManifestInfo(platform, game)
+    fun downloadMobileManifest(platform: Platform, game: Game, clientDetails: ClientDetails): Pair<BuildResponse, Manifest> {
+        val manifestInfo = getMobileManifestInfo(platform, game, clientDetails)
         return manifestInfo to downloadManifest(manifestInfo)
     }
     fun downloadManifest(manifestInfo : ManifestInfoResponse) =
