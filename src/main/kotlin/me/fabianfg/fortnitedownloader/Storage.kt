@@ -5,7 +5,6 @@ import mu.KotlinLogging
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.internal.closeQuietly
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
@@ -46,7 +45,7 @@ class Storage internal constructor(val chunkPoolCapacity : Int, val cacheLocatio
     private val chunkPool = HashMap<String, ChunkPoolData>(chunkPoolCapacity)
     private val chunkPoolMutex = ReentrantLock()
 
-    suspend fun getChunkPart(chunkPart: ChunkPart): ByteArray? {
+    fun getChunkPart(chunkPart: ChunkPart): ByteArray? {
         val chunk = getChunk(chunkPart.chunk)
         return if (chunk == null || chunkPart.offset == 0 && chunkPart.size == chunkPart.chunk.windowSize)
             chunk
@@ -57,40 +56,52 @@ class Storage internal constructor(val chunkPoolCapacity : Int, val cacheLocatio
         }
     }
 
-    suspend fun getChunk(chunk: Chunk): ByteArray? {
+    fun getChunk(chunk: Chunk): ByteArray? {
         val data = getPoolData(chunk)
+
+        fun doDownload() {
+            // download
+            data.status.set(ChunkStatus.Grabbing)
+            val chunkData = downloadChunk(chunk)
+            if (chunkData != null) {
+                // I guess that really can't happen
+                //if (chunkData.size != chunk.windowSize)
+                //    logger.error { "Failed to download chunk ${chunk.url()} correctly" }
+                data.buffer = chunkData
+                data.status.set(ChunkStatus.Readable)
+            } else {
+                data.buffer = null
+                data.status.set(ChunkStatus.Unavailable)
+            }
+            data.mutex.withLock {
+                data.cv.signalAll()
+            }
+        }
+
         when(data.status.get()) {
             ChunkStatus.Unavailable -> {
-                // download
-                data.status.set(ChunkStatus.Grabbing)
-
-                val chunkData = downloadChunk(chunk)
-                if (chunkData != null) {
-                    data.buffer = chunkData
-                    data.status.set(ChunkStatus.Readable)
-                } else {
-                    data.buffer = null
-                    data.status.set(ChunkStatus.Unavailable)
-                }
-                data.mutex.withLock {
-                    data.cv.signalAll()
-                }
+                doDownload()
             }
             ChunkStatus.Available -> {
                 // read from file
                 data.status.set(ChunkStatus.Reading)
 
-                val chunkData = runCatching { File(cacheLocation + chunk.fileName()).readBytes() }
-                    .getOrElse {
-                        data.status.set(ChunkStatus.Unavailable)
-                        getChunk(chunk)
-                    }
-                if (chunkData != null) {
+                val chunkData = runCatching { File(cacheLocation + chunk.fileName()).readBytes() }.getOrNull()
+                if (chunkData == null || chunkData.size != chunk.windowSize) {
+                    // That can / will happen if the chunk is very new on the file system
+                    // It can also happen if the chunk file just got deleted
+                    if (chunkData == null)
+                        logger.warn { "Failed to read chunk ${chunk.fileName()} from file, didn't receive anything. Why tho" }
+                    else
+                        logger.warn { "Failed to read chunk ${chunk.fileName()} from file. Expected ${chunk.windowSize} bytes, got ${chunkData.size} bytes. Why tho" }
+                    doDownload()
+                    if (data.status.get() == ChunkStatus.Readable)
+                        logger.info { "Re-download of previously failed chunk ${chunk.fileName()} succeeded" }
+                    else
+                        logger.info { "Re-download of previously failed chunk ${chunk.fileName()} also failed" }
+                } else {
                     data.buffer = chunkData
                     data.status.set(ChunkStatus.Readable)
-                } else {
-                    data.buffer = null
-                    data.status.set(ChunkStatus.Unavailable)
                 }
                 data.mutex.withLock {
                     data.cv.signalAll()
@@ -165,12 +176,13 @@ class Storage internal constructor(val chunkPoolCapacity : Int, val cacheLocatio
                 }
 
                 if (storedAs and 0x01 != 0) {
-                    val out = ByteArrayOutputStream(decompressedSize)
+                    val out = ModByteArrayOutputStream(decompressedSize)
                     val decompress = InflaterInputStream(chunkData)
                     decompress.copyTo(out)
+                    out.size()
                     out.toByteArray()
                 } else {
-                    val out = ByteArrayOutputStream(chunk.windowSize)
+                    val out = ModByteArrayOutputStream(chunk.windowSize)
                     chunkData.copyTo(out)
                     out.toByteArray()
                 }

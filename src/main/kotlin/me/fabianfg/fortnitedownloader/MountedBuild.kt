@@ -84,37 +84,43 @@ class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downlo
         fileRead(file, dest, getNeededChunks(file, destOffset, offset, length))
 
     internal fun fileRead(file : FileManifest, dest : ByteArray, neededChunks : Iterable<NeededChunk>): Boolean {
-        val tasks = neededChunks.map { async {
+        val tasks = neededChunks.map { async { runCatching {
             val chunkBuffer = storage.getChunkPart(it.chunkPart)
             if (chunkBuffer == null) {
                 logger.error { "Failed to download chunk for offset ${it.offset} and size ${it.size} in file ${file.fileName}" }
-                return@async false
+                return@runCatching false
             } else {
                 //logger.info { "Copying ${it.size} bytes to ${it.offset}" }
                 chunkBuffer.copyInto(dest, it.offset, it.chunkStartOffset, it.chunkStartOffset + it.size)
-                return@async true
+                return@runCatching true
             }
-        } }
+        } } }
         val results = runBlocking { tasks.awaitAll() }
-        return results.all { it }
+        return results.all { result ->
+            result.onFailure { logger.warn(it) { "Uncaught exception while downloading chunk" } }
+                .getOrElse { false }
+        }
     }
 
     fun preloadChunks(fileName: String, progressUpdate: ((Int, Int) -> Unit)? = null) =
         preloadChunks(manifest.fileManifestList.first { it.fileName == fileName }, progressUpdate)
     fun preloadChunks(file: FileManifest, progressUpdate: ((Int, Int) -> Unit)? = null): Boolean {
         val readChunks = AtomicInteger(0)
-        val tasks = file.chunkParts.mapIndexed { i, it -> async {
+        val tasks = file.chunkParts.mapIndexed { i, it -> async { runCatching {
             val chunkBuffer = storage.getChunkPart(it)
             if (chunkBuffer == null) {
                 logger.error { "Failed to download chunk $i with size ${it.size} in file ${file.fileName}" }
-                return@async false
+                return@runCatching false
             } else {
                 val count = readChunks.incrementAndGet()
                 progressUpdate?.invoke(count, file.chunkParts.size)
-                return@async true
+                return@runCatching true
             }
-        } }
-        return runBlocking { tasks.awaitAll() }.all { it }
+        } } }
+        return runBlocking { tasks.awaitAll() }.all { result ->
+            result.onFailure { logger.warn(it) { "Uncaught exception while downloading chunk" } }
+                .getOrElse { false }
+        }
     }
 
     fun downloadEntireFile(fileName: String, output: File, progressUpdate: (Long, Long) -> Unit) =
@@ -132,11 +138,11 @@ class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downlo
         raFile.setLength(totalSize)
         val fileWriteMutex = ReentrantLock()
         val readBytes = AtomicLong(0L)
-        val tasks = file.chunkParts.mapIndexed { i, it -> async {
+        val tasks = file.chunkParts.mapIndexed { i, it -> async { runCatching {
             val chunkBuffer = storage.getChunkPart(it)
             if (chunkBuffer == null) {
                 logger.error { "Failed to download chunk $i with size ${it.size} in file ${file.fileName}" }
-                return@async false
+                return@runCatching false
             } else {
                 fileWriteMutex.withLock {
                     raFile.seek(offsets[i])
@@ -144,10 +150,13 @@ class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downlo
                 }
                 val newReadBytes = readBytes.addAndGet(chunkBuffer.size.toLong())
                 progressUpdate.invoke(newReadBytes, totalSize)
-                return@async true
+                return@runCatching true
             }
-        } }
-        val res = runBlocking { tasks.awaitAll() }.all { it }
+        } } }
+        val res = runBlocking { tasks.awaitAll() }.all { result ->
+            result.onFailure { logger.warn(it) { "Uncaught exception while downloading chunk" } }
+                .getOrElse { false }
+        }
         raFile.close()
         return res
     }
