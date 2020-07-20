@@ -8,7 +8,7 @@
 - Download all files from a parsed manifest individually
 - Implements the FileProvider interface from JFortniteParse with reading from Manifests.
 The main benefit is that only the chunks you need are downloaded
-- Preload chunks for a file, that you might need later.
+- Preload chunks for a file that you might need later.
 
 ### Usage
 
@@ -75,8 +75,8 @@ if (success)
 - Preloading chunks of a file
 ```kotlin
 val fileName = "FortniteGame/Content/Paks/pakchunk0-WindowsClient.pak"
-val success = mountedBuild.preloadChunks(fileName) { pos, size ->
-    println("Preloaded $pos of $size chunks")
+val success = mountedBuild.preloadChunks(fileName) { readChunks, numChunks ->
+    println("Preloaded $readChunks of $numChunks chunks")
 }
 if (success)
     println("Preloaded chunks from $fileName successfully")
