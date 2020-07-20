@@ -9,6 +9,7 @@ import java.io.File
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 import java.util.zip.InflaterInputStream
 import kotlin.concurrent.withLock
@@ -26,13 +27,18 @@ private class ChunkPoolData(
     val status : AtomicReference<ChunkStatus>
 ) {
     val mutex = ReentrantLock()
-    val cv = mutex.newCondition()
+    val cv : Condition = mutex.newCondition()
 }
 
+/**
+ * This class should not be used manually.
+ * It is used by MountedBuild for storing and downloading chunks
+ *
+ */
 class Storage internal constructor(val chunkPoolCapacity : Int, val cacheLocation : String, val cloudDir : String) {
 
     companion object {
-        val logger = KotlinLogging.logger("MountedBuild")
+        private val logger = KotlinLogging.logger("MountedBuild")
     }
 
     init {
@@ -60,7 +66,6 @@ class Storage internal constructor(val chunkPoolCapacity : Int, val cacheLocatio
         val data = getPoolData(chunk)
 
         fun doDownload() {
-            // download
             data.status.set(ChunkStatus.Grabbing)
             val chunkData = downloadChunk(chunk)
             if (chunkData != null) {
@@ -80,6 +85,7 @@ class Storage internal constructor(val chunkPoolCapacity : Int, val cacheLocatio
 
         when(data.status.get()) {
             ChunkStatus.Unavailable -> {
+                // download
                 doDownload()
             }
             ChunkStatus.Available -> {

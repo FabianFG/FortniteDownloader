@@ -34,7 +34,7 @@ class Manifest {
     val chunkManifestList : List<Chunk>
     val fileManifestList : List<FileManifest>
 
-    private constructor(json: String, manifestUrl: String, readOptionalValues : Boolean) {
+    private constructor(json: String, cloudDir: String, readOptionalValues : Boolean) {
         val reader = JsonReader(json.reader())
         reader.beginObject()
         val chunkManifestList = LinkedList<Chunk>()
@@ -57,7 +57,7 @@ class Manifest {
                         featureLevel < EFeatureLevel.VariableSizeChunksWithoutWindowSizeChunkInfo -> "/ChunksV3/"
                         else -> "/ChunksV4/"
                     }
-                    cloudDir = manifestUrl.substringBeforeLast('/') + chunksDir
+                    this.cloudDir = cloudDir + chunksDir
                 }
                 "bIsFileData" -> isFileData = reader.nextBoolean()
                 "AppID" -> appID = reader.nextString().hashToInt()
@@ -195,7 +195,7 @@ class Manifest {
             featureLevel < EFeatureLevel.VariableSizeChunksWithoutWindowSizeChunkInfo -> "/ChunksV3/"
             else -> "/ChunksV4/"
         }
-        cloudDir = manifestUrl.substringBeforeLast('/') + chunksDir
+        cloudDir = manifestUrl + chunksDir
         isFileData = manifestData.readFlag()
         appID = manifestData.readInt32()
         appName = manifestData.readString()
@@ -313,15 +313,20 @@ class Manifest {
     }
 
     companion object {
+        @JvmStatic
+        @JvmOverloads
         @Suppress("EXPERIMENTAL_API_USAGE", "EXPERIMENTAL_UNSIGNED_LITERALS")
-        fun parse(data: ByteArray, manifestUrl : String, readOptionalValues: Boolean = false) : Manifest {
+        fun parse(data: ByteArray, url : String, readOptionalValues: Boolean = false) : Manifest {
+            var cloudDir = url.replace('\\', '/')
+            if (cloudDir.substringAfterLast('/').substringBeforeLast('?').endsWith(".manifest"))
+                cloudDir = cloudDir.substringBeforeLast('/')
             val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
             return if (buffer.int.toUInt() == 0x44BEC00Cu)
-                Manifest(buffer, manifestUrl, readOptionalValues)
+                Manifest(buffer, cloudDir, readOptionalValues)
             else
                 Manifest(
                     String(data),
-                    manifestUrl,
+                    cloudDir,
                     readOptionalValues
                 )
         }

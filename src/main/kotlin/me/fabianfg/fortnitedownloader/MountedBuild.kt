@@ -11,13 +11,29 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+/**
+ * Extension function to mount a downloaded manifest
+ * @param cachePath The directory to save the cached chunks in. Defaults to ".downloaderChunks" in your current working directory
+ * @param chunkPoolCapacity The amount of chunks that should be kept in the in-memory pool. Defaults to 20
+ * @param numThreads The amount of threads to use to download concurrently. Defaults to 20
+ * @return The mounted build
+ * @see MountedBuild
+ */
 fun Manifest.mount(cachePath: File = File(".downloaderChunks"), chunkPoolCapacity: Int = 20, numThreads: Int = 20) =
     MountedBuild(this, cachePath, chunkPoolCapacity, numThreads)
 
-class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downloaderChunks"), chunkPoolCapacity : Int = 20, numThreads : Int = 20) : CoroutineScope {
+/**
+ * Create a mounted build.
+ * This class is thread-safe
+ * @param manifest The manifest to use as a basis
+ * @param cachePath The directory to save the cached chunks in. Defaults to ".downloaderChunks" in your current working directory
+ * @param chunkPoolCapacity The amount of chunks that should be kept in the in-memory pool. Defaults to 20
+ * @param numThreads The amount of threads to use to download concurrently. Defaults to 20
+ */
+class MountedBuild @JvmOverloads constructor(val manifest : Manifest, val cachePath : File = File(".downloaderChunks"), chunkPoolCapacity : Int = 20, numThreads : Int = 20) : CoroutineScope {
 
     companion object {
-        val logger = KotlinLogging.logger("MountedBuild")
+        private val logger = KotlinLogging.logger("MountedBuild")
     }
 
     private val job = Job()
@@ -31,7 +47,13 @@ class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downlo
             return thread
         }
     })
+
+    /**
+     * Please don't use this scope manually
+     * Doing so might slow down any read processes
+     */
     override val coroutineContext = job + ex.asCoroutineDispatcher()
+
     private val storage = Storage(
         chunkPoolCapacity,
         cachePath.absolutePath,
@@ -78,11 +100,57 @@ class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downlo
         return neededChunks
     }
 
+    /**
+     * Convenience function for reading from a file by it's name
+     *
+     * This functions works most efficient with a low amount of large serializations
+     *
+     * This should not be used for small read operations as it becomes really inefficient
+     * For small reads consider using a FManifestPakArchive, because it keeps track of the chunk it's currently working on
+     *
+     * @param fileName The file to download from
+     * @param dest The byte array to write results to
+     * @param destOffset The offset to begin writing in the result array
+     * @param offset The offset in the file to download from
+     * @param length The amount of bytes to read
+     * @return whether the operation completed successfully
+     *
+     * @see fileRead
+     */
     fun fileRead(fileName: String, dest: ByteArray, destOffset: Int, offset: Long, length: Int) =
         fileRead(manifest.fileManifestList.first { it.fileName == fileName }, dest, destOffset, offset, length)
+
+    /**
+     * Read from a FileManifest into a byte array
+     *
+     * This functions works most efficient with a low amount of large serializations
+     *
+     * This should not be used for small read operations as it becomes really inefficient
+     * For small reads consider using a FManifestPakArchive, because it keeps track of the chunk it's currently working on
+     *
+     * @param file The file to download from
+     * @param dest The byte array to write results to
+     * @param destOffset The offset to begin writing in the result array
+     * @param offset The offset in the file to download from
+     * @param length The amount of bytes to read
+     * @return whether the operation completed successfully
+     *
+     * @see FManifestPakArchive
+     */
     fun fileRead(file: FileManifest, dest: ByteArray, destOffset: Int, offset: Long, length: Int) =
         fileRead(file, dest, getNeededChunks(file, destOffset, offset, length))
 
+    /**
+     * This should not be used manually
+     *
+     * Reads from a file into an byte array by using pre-computed needed chunks
+     * Warning: If you attempt to use this manually and provide wrong offsets in the NeededChunk's you might get ArrayIndexOutOfBoundsExceptions
+     *
+     * @param file The file to download from
+     * @param dest The byte array to write results to
+     * @param neededChunks The precomputed needed chunks
+     * @return whether the operation completed successfully
+     */
     internal fun fileRead(file : FileManifest, dest : ByteArray, neededChunks : Iterable<NeededChunk>): Boolean {
         val tasks = neededChunks.map { async { runCatching {
             val chunkBuffer = storage.getChunkPart(it.chunkPart)
@@ -102,8 +170,27 @@ class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downlo
         }
     }
 
+    /**
+     * Convenience function for preloading a file by it's name
+     * Preload = Download the chunk and place it in the cache directory
+     *
+     * @param fileName The file to preload
+     * @param progressUpdate Function to be invoked on progress update or null. First param is the number of chunks already preloaded, Second is the total number of chunks to preload
+     * @return whether the operation completed successfully
+     *
+     * @see preloadChunks
+     */
     fun preloadChunks(fileName: String, progressUpdate: ((Int, Int) -> Unit)? = null) =
         preloadChunks(manifest.fileManifestList.first { it.fileName == fileName }, progressUpdate)
+
+    /**
+     * Preloads all chunks from a passed file updating the user on the progress
+     * Preload = Download the chunk and place it in the cache directory
+     *
+     * @param file The file to preload
+     * @param progressUpdate Function to be invoked on progress update or null. First param is the number of chunks already preloaded, Second is the total number of chunks to preload
+     * @return whether the operation completed successfully
+     */
     fun preloadChunks(file: FileManifest, progressUpdate: ((Int, Int) -> Unit)? = null): Boolean {
         val readChunks = AtomicInteger(0)
         val tasks = file.chunkParts.mapIndexed { i, it -> async { runCatching {
@@ -123,10 +210,26 @@ class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downlo
         }
     }
 
-    fun downloadEntireFile(fileName: String, output: File, progressUpdate: (Long, Long) -> Unit) =
+    /**
+     * Convenience function to download an entire file by its name
+     *
+     * @param file The file to download
+     * @param progressUpdate Function to be invoked on progress update or null. First param is the number of bytes already downloaded, Second is the total number of bytes to be read
+     * @return whether the operation completed successfully
+     *
+     * @see downloadEntireFile
+     */
+    fun downloadEntireFile(fileName: String, output: File, progressUpdate: ((Long, Long) -> Unit)? = null) =
         downloadEntireFile(manifest.fileManifestList.first { it.fileName == fileName }, output, progressUpdate)
+    /**
+     * Downloads an entire FileManifest to a passed output file updating the user on the progress
+     *
+     * @param file The file to download
+     * @param progressUpdate Function to be invoked on progress update or null. First param is the number of bytes already downloaded, Second is the total number of bytes to be read
+     * @return whether the operation completed successfully
+     */
     @Suppress("BlockingMethodInNonBlockingContext")
-    fun downloadEntireFile(file: FileManifest, output: File, progressUpdate: (Long, Long) -> Unit): Boolean {
+    fun downloadEntireFile(file: FileManifest, output: File, progressUpdate: ((Long, Long) -> Unit)? = null): Boolean {
         val offsets = LongArray(file.chunkParts.size)
         var totalSize = 0L
         file.chunkParts.forEachIndexed { i, chunkPart ->
@@ -149,7 +252,7 @@ class MountedBuild(val manifest : Manifest, val cachePath : File = File(".downlo
                     raFile.write(chunkBuffer)
                 }
                 val newReadBytes = readBytes.addAndGet(chunkBuffer.size.toLong())
-                progressUpdate.invoke(newReadBytes, totalSize)
+                progressUpdate?.invoke(newReadBytes, totalSize)
                 return@runCatching true
             }
         } } }

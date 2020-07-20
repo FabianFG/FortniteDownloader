@@ -7,11 +7,19 @@ import me.fungames.jfortniteparse.ue4.versions.Ue4Version
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-fun FileManifest.openPakArchive(downloader: MountedBuild, game : Ue4Version) = FManifestPakArchive(
+fun FileManifest.openPakArchive(build: MountedBuild, game : Ue4Version) = FManifestPakArchive(
     this,
-    downloader
+    build
 ).apply { this.game = game.game; this.ver = game.version }
 
+/**
+ * Class implementing an FPakArchive reading from a manifest
+ * This is not thread-safe on it's own but it offers a copy method, that the ManifestFileProvider uses if set to concurrent
+ *
+ * Also is efficient with doing small serializations, because it's keeping track on the offset it's currently working on
+ *
+ * @see FPakArchive
+ */
 @Suppress("EXPERIMENTAL_API_USAGE", "EXPERIMENTAL_OVERRIDE")
 class FManifestPakArchive : FPakArchive {
 
@@ -26,6 +34,11 @@ class FManifestPakArchive : FPakArchive {
 
     override var littleEndian = true
 
+    /**
+     * Create a FManifestPakArchive
+     * @param file The file to use for this archive
+     * @param build The MountedBuild to use for reading from files
+     */
     constructor(file: FileManifest, build: MountedBuild) : super(file.fileName) {
         this.file = file
         this.build = build
