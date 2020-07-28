@@ -2,7 +2,7 @@ package me.fabianfg.fortnitedownloader
 
 import kotlinx.coroutines.launch
 import me.fungames.jfortniteparse.fileprovider.PakFileProvider
-import me.fungames.jfortniteparse.ue4.FGuid
+import me.fungames.jfortniteparse.ue4.objects.core.misc.FGuid
 import me.fungames.jfortniteparse.ue4.locres.Locres
 import me.fungames.jfortniteparse.ue4.pak.GameFile
 import me.fungames.jfortniteparse.ue4.pak.PakFileReader
