@@ -1,7 +1,14 @@
 package me.fabianfg.fortnitedownloader
 
+import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 internal fun ByteArray.swapOrder(index : Int, size : Int) : ByteArray {
     require(size % 2 == 0) { "size must be even" }
@@ -55,4 +62,21 @@ inline fun <reified T> Iterable<T>.sumBy(selector: (T) -> Int): Long {
         sum += selector(element)
     }
     return sum
+}
+
+suspend fun Call.await(): Response {
+    return suspendCancellableCoroutine { continuation ->
+        continuation.invokeOnCancellation {
+            cancel()
+        }
+        enqueue(object : Callback {
+            override fun onResponse(call: Call, response: Response) {
+                continuation.resume(response)
+            }
+
+            override fun onFailure(call: Call, e: IOException) {
+                continuation.resumeWithException(e)
+            }
+        })
+    }
 }

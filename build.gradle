@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'me.fabianfg'
-version '1.5.3'
+version '1.6'
 
 sourceCompatibility = 1.8
 
@@ -63,7 +63,7 @@ publishing {
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
     implementation "me.fungames:JFortniteParse:3.2.2"
-    implementation "me.fungames:Fortnite-Api:1.7"
+    implementation "me.fungames:Fortnite-Api:1.7.1"
     implementation 'com.squareup.okhttp3:okhttp:4.2.2'
     implementation 'com.google.code.gson:gson:2.8.0'
     implementation 'com.squareup.retrofit2:retrofit:2.3.0'
