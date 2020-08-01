@@ -103,8 +103,6 @@ class LauncherManifestDownloader {
      * @return The downloaded response from the launcher
      */
     fun getManifestInfo(platform: Platform, game: Game) : ManifestInfoResponse {
-        if (System.currentTimeMillis() >= api.accountExpiresAtMillis)
-            api.loginClientCredentials()
         val response = api.launcherPublicService.getManifest(platform.name, game.id, game.name, game.label).execute()
         if (!response.isSuccessful)
             throw EpicErrorException(EpicError.parse(response))
@@ -119,8 +117,6 @@ class LauncherManifestDownloader {
      * @return The downloaded response from the launcher
      */
     fun getMobileManifestInfo(platform: Platform, game: Game, clientDetails: ClientDetails) : BuildResponse {
-        if (System.currentTimeMillis() >= api.accountExpiresAtMillis)
-            api.loginClientCredentials()
         val response = api.launcherPublicService.getItemBuild(platform.name, game.id, game.name, game.label, clientDetails).execute()
         if (!response.isSuccessful)
             throw EpicErrorException(EpicError.parse(response))

@@ -114,7 +114,7 @@ After that you can just use it exactly like the DefaultFileProvider described in
 <dependency>
 	<groupId>me.fabianfg</groupId>
 	<artifactId>FortniteDownloader</artifactId>
-	<version>1.5.1</version>
+	<version>1.5.3</version>
 </dependency>
 ```
 ##### Gradle
@@ -128,7 +128,7 @@ repositories {
 ```
 - Add the dependency
 ```groovy
-implementation 'me.fabianfg:FortniteDownloader:1.5.1'
+implementation 'me.fabianfg:FortniteDownloader:1.5.3'
 ```
 
 ### Credits

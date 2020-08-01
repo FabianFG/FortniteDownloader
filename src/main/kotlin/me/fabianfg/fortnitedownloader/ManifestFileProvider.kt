@@ -43,7 +43,7 @@ class ManifestFileProvider(val mountedBuild: MountedBuild, paksToSkip : List<Str
 
     init {
         mountedBuild.manifest.fileManifestList.filter { it.fileName.endsWith(".pak", true) &&
-                it.fileName.startsWith("FortniteGame/Content/Paks") &&
+                it.fileName.startsWith("FortniteGame/Content/Paks", true) &&
                 !paksToSkip.contains(it.fileName) }.forEach {
             try {
                 val reader = PakFileReader(it.openPakArchive(mountedBuild, game))
