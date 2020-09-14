@@ -27,7 +27,6 @@ import java.util.concurrent.CopyOnWriteArrayList
  */
 @Suppress("EXPERIMENTAL_API_USAGE")
 class ManifestFileProvider(val mountedBuild: MountedBuild, paksToSkip : List<String> = emptyList(), val localFilesFolder : File? = null, override var game : Ue4Version = Ue4Version.GAME_UE4_LATEST, concurrent : Boolean) : PakFileProvider() {
-    override var defaultLocres : Locres? = null
     override val files = ConcurrentHashMap<String, GameFile>()
     override val keys = ConcurrentHashMap<FGuid, ByteArray>()
     override val mountedPaks = CopyOnWriteArrayList<PakFileReader>()
