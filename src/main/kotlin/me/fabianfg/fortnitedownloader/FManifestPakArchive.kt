@@ -55,7 +55,7 @@ class FManifestPakArchive : FPakArchive {
         currentChunkStartOffset = 0
     }
 
-    private constructor(file: FileManifest, build: MountedBuild, offsets : LongArray, size : Long, initialPos : Long, initialChunk : Int, initialChunkStartOffset : Int, pakInfo : FPakInfo) : super(file.fileName) {
+    private constructor(file: FileManifest, build: MountedBuild, offsets : LongArray, size : Long, initialPos : Long, initialChunk : Int, initialChunkStartOffset : Int, pakInfo : FPakInfo?) : super(file.fileName) {
         this.file = file
         this.build = build
         this.offsets = offsets
@@ -63,7 +63,8 @@ class FManifestPakArchive : FPakArchive {
         this.pos = initialPos
         this.currentChunk = initialChunk
         this.currentChunkStartOffset = initialChunkStartOffset
-        this.pakInfo = pakInfo
+        if (pakInfo != null)
+            this.pakInfo = pakInfo
     }
 
     override fun clone() = FManifestPakArchive(
@@ -74,7 +75,7 @@ class FManifestPakArchive : FPakArchive {
         pos,
         currentChunk,
         currentChunkStartOffset,
-        pakInfo
+        if (hasPakInfo) pakInfo else null
     )
 
     override fun pakPos() = pos

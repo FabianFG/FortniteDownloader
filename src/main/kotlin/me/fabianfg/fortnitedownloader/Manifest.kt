@@ -170,7 +170,7 @@ class Manifest {
         if (storedAs and 0x01 != 0) {
             // compressed
             val compressed = reader.read(dataSizeCompressed)
-            Compression.decompress(compressed, data, CompressionMethod.Zlib)
+            Compression.uncompressMemory("Zlib", compressed, data)
         } else {
             reader.read(data)
         }
@@ -202,7 +202,7 @@ class Manifest {
         buildVersion = manifestData.readString()
         launchExe = manifestData.readString()
         launchCommand = manifestData.readString()
-        /*val prereqIds = */manifestData.readTArray { it.readString() }
+        /*val prereqIds = */manifestData.readTArray { manifestData.readString() }
         /*val prereqName = */manifestData.readString()
         /*val prereqPath = */manifestData.readString()
         /*val prereqArgs = */manifestData.readString()
@@ -269,9 +269,9 @@ class Manifest {
                 manifestData.skip(count * 20L)
             manifestData.skip(count.toLong()) // FileMetaFlags
             if (readOptionalValues)
-                for (i in 0 until count) { fileManifestList[i].installTags = manifestData.readTArray { it.readString() }.toList() }
+                for (i in 0 until count) { fileManifestList[i].installTags = manifestData.readTArray { manifestData.readString() }.toList() }
             else
-                for (i in 0 until count) { manifestData.readTArray { it.readString() } } // InstallTags
+                for (i in 0 until count) { manifestData.readTArray { manifestData.readString() } } // InstallTags
             for (f in fileManifestList) {
                 val chunkCount = manifestData.readInt32()
                 val list = ArrayList<ChunkPart>(chunkCount)
