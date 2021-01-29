@@ -131,6 +131,8 @@ class FManifestPakArchive : FPakArchive {
         }
     }
 
+    override fun read() = read(1)[0].toUByte().toInt()
+
     override fun seek(pos: Long) {
         loop@ for (i in 0 until offsets.size - 1) {
             when {

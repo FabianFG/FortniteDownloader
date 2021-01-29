@@ -96,7 +96,6 @@ class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: Typ
     }
 
     override fun mount(reader: PakFileReader) {
-        super.mount(reader)
         reader.readIndex()
         reader.files.associateByTo(files, {file -> file.path.toLowerCase()})
         mountedPaks.add(reader)
