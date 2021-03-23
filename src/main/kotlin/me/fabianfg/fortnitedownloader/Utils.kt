@@ -4,11 +4,29 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Response
+import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.security.MessageDigest
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+
+
+internal fun File.computeSha1Hash() = computeHash(MessageDigest.getInstance("SHA-1"))
+internal fun File.computeHash(algorithm : String) = computeHash(MessageDigest.getInstance(algorithm))
+
+internal fun File.computeHash(digest : MessageDigest): ByteArray {
+    val fis = inputStream()
+
+    val byteArray = ByteArray(1024)
+    var bytesCount: Int
+    while (fis.read(byteArray).also { bytesCount = it } != -1) {
+        digest.update(byteArray, 0, bytesCount)
+    }
+    fis.close()
+    return digest.digest()
+}
 
 internal fun ByteArray.swapOrder(index : Int, size : Int) : ByteArray {
     require(size % 2 == 0) { "size must be even" }

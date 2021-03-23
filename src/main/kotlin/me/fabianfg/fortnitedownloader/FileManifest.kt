@@ -16,16 +16,19 @@ class FileManifest {
     lateinit var installTags : List<String>
         internal set
 
+    val hasHash : Boolean get() = ::shaHash.isInitialized
+    val hasInstallTags : Boolean get() = ::shaHash.isInitialized
+
     internal constructor(fileName : String) {
         this.fileName = fileName
     }
 
-    internal constructor(reader: JsonReader, readOptionalFields : Boolean) {
+    internal constructor(reader: JsonReader, readFileHashes : Boolean, readInstallTags : Boolean) {
         reader.beginObject()
         while (reader.peek() != JsonToken.END_OBJECT) {
             when(reader.nextName()) {
                 "Filename" -> fileName = reader.nextString()
-                "FileHash" -> if (readOptionalFields) {
+                "FileHash" -> if (readFileHashes) {
                     shaHash = ByteBuffer.allocate(20).hashToBytes(reader.nextString()).array()
                 } else {
                     reader.skipValue()
@@ -38,7 +41,7 @@ class FileManifest {
                     this.chunkParts = chunkParts
                     reader.endArray()
                 }
-                "InstallTags" -> if (readOptionalFields) {
+                "InstallTags" -> if (readInstallTags) {
                     reader.beginArray()
                     val installTags = LinkedList<String>()
                     while (reader.peek() != JsonToken.END_ARRAY)

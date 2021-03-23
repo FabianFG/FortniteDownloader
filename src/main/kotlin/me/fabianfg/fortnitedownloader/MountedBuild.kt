@@ -219,8 +219,8 @@ class MountedBuild @JvmOverloads constructor(val manifest : Manifest, val cacheP
      *
      * @see downloadEntireFile
      */
-    fun downloadEntireFile(fileName: String, output: File, progressUpdate: ((Long, Long) -> Unit)? = null) =
-        downloadEntireFile(manifest.fileManifestList.first { it.fileName == fileName }, output, progressUpdate)
+    fun downloadEntireFile(fileName: String, output: File, onlyOverwriteWhenChanged : Boolean = true, progressUpdate: ((Long, Long) -> Unit)? = null) =
+        downloadEntireFile(manifest.fileManifestList.first { it.fileName == fileName }, output, onlyOverwriteWhenChanged, progressUpdate)
     /**
      * Downloads an entire FileManifest to a passed output file updating the user on the progress
      *
@@ -229,13 +229,18 @@ class MountedBuild @JvmOverloads constructor(val manifest : Manifest, val cacheP
      * @return whether the operation completed successfully
      */
     @Suppress("BlockingMethodInNonBlockingContext")
-    fun downloadEntireFile(file: FileManifest, output: File, progressUpdate: ((Long, Long) -> Unit)? = null): Boolean {
+    fun downloadEntireFile(file: FileManifest, output: File, onlyOverwriteWhenChanged : Boolean = true, progressUpdate: ((Long, Long) -> Unit)? = null): Boolean {
+        if (onlyOverwriteWhenChanged && file.hasHash && runCatching { output.computeSha1Hash().contentEquals(file.shaHash) }.getOrDefault(false)) {
+            return true
+        }
+
         val offsets = LongArray(file.chunkParts.size)
         var totalSize = 0L
         file.chunkParts.forEachIndexed { i, chunkPart ->
             offsets[i] = totalSize
             totalSize += chunkPart.size
         }
+
         //Create the file and align to correct size
         val raFile = RandomAccessFile(output, "rw")
         raFile.setLength(totalSize)

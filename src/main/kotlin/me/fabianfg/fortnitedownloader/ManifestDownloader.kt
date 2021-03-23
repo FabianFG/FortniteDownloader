@@ -26,12 +26,12 @@ object ManifestLoader {
      * @return The downloaded and parsed manifest
      */
     @JvmStatic
-    suspend fun downloadManifestSuspend(manifestInfo: ManifestInfoResponse) : Manifest {
+    suspend fun downloadManifestSuspend(manifestInfo: ManifestInfoResponse, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) : Manifest {
         var url = "${manifestInfo.items.MANIFEST.distribution}${manifestInfo.items.MANIFEST.path}"
         val query : String? = manifestInfo.items.MANIFEST.signature
         if (query != null)
             url += "?$query"
-        return downloadManifestSuspend(url)
+        return downloadManifestSuspend(url, readFileHashes, readInstallTags, readHashList)
     }
 
     /**
@@ -40,8 +40,8 @@ object ManifestLoader {
      * @return The downloaded and parsed manifest
      */
     @JvmStatic
-    fun downloadManifest(manifestInfo: ManifestInfoResponse) =
-        runBlocking { downloadManifestSuspend(manifestInfo) }
+    fun downloadManifest(manifestInfo: ManifestInfoResponse, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) =
+        runBlocking { downloadManifestSuspend(manifestInfo, readFileHashes, readInstallTags, readHashList) }
 
     /**
      * Download a manifest from the given url without blocking the current thread
@@ -49,13 +49,14 @@ object ManifestLoader {
      * @return The downloaded and parsed manifest
      */
     @JvmStatic
-    suspend fun downloadManifestSuspend(url : String) = withContext(Dispatchers.IO) {
+    suspend fun downloadManifestSuspend(url : String, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url).get().build()
         val manifestResponse = httpClient.newCall(request).await()
         require(manifestResponse.isSuccessful) {"${manifestResponse.code} : ${manifestResponse.message}"}
         return@withContext Manifest.parse(
             manifestResponse.body!!.bytes(),
-            url
+            url,
+            readFileHashes, readInstallTags, readHashList
         )
     }
 
@@ -65,8 +66,8 @@ object ManifestLoader {
      * @return The downloaded and parsed manifest
      */
     @JvmStatic
-    fun downloadManifest(url : String) =
-        runBlocking { downloadManifestSuspend(url) }
+    fun downloadManifest(url : String, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) =
+        runBlocking { downloadManifestSuspend(url, readFileHashes, readInstallTags, readHashList) }
 
     /**
      * Parse a manifest with the bytes from the passed file and the url as cloud dir
@@ -75,8 +76,8 @@ object ManifestLoader {
      * @return The parsed manifest
      */
     @JvmStatic
-    fun loadManifest(file : File, url : String) : Manifest =
-        Manifest.parse(file.readBytes(), url)
+    fun loadManifest(file : File, url : String, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) : Manifest =
+        Manifest.parse(file.readBytes(), url, readFileHashes, readInstallTags, readHashList)
 
     /**
      * Download and parse a manifest from the launcher's response from the v2 endpoint without blocking the current thread
@@ -84,7 +85,7 @@ object ManifestLoader {
      * @return The downloaded and parsed manifest
      */
     @JvmStatic
-    suspend fun downloadManifestSuspend(manifestInfo: BuildResponse) : Manifest {
+    suspend fun downloadManifestSuspend(manifestInfo: BuildResponse, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) : Manifest {
         require(manifestInfo.elements.isNotEmpty()) {"BuildResponse does not contain any element"}
         val element = manifestInfo.elements.first()
         require(element.manifests.isNotEmpty()) {"BuildInfo does not contain any manifest"}
@@ -96,7 +97,7 @@ object ManifestLoader {
             queryParams.forEach { builder.addQueryParameter(it.name, it.value) }
             url = builder.build()
         }
-        return downloadManifestSuspend(url.toString())
+        return downloadManifestSuspend(url.toString(), readFileHashes, readInstallTags, readHashList)
     }
 
     /**
@@ -105,8 +106,8 @@ object ManifestLoader {
      * @return The downloaded and parsed manifest
      */
     @JvmStatic
-    fun downloadManifest(manifestInfo: BuildResponse) =
-        runBlocking { downloadManifestSuspend(manifestInfo) }
+    fun downloadManifest(manifestInfo: BuildResponse, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) =
+        runBlocking { downloadManifestSuspend(manifestInfo, readFileHashes, readInstallTags, readHashList) }
 }
 
 /**
@@ -165,9 +166,9 @@ class LauncherManifestDownloader {
      * @param game The game to download the info and manifest of
      * @return a pair of both, the launcher's info response and the downloaded and parse manifest
      */
-    suspend fun downloadManifestSuspend(platform: Platform, game: Game): Pair<ManifestInfoResponse, Manifest> {
+    suspend fun downloadManifestSuspend(platform: Platform, game: Game, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false): Pair<ManifestInfoResponse, Manifest> {
         val manifestInfo = getManifestInfoSuspend(platform, game)
-        return manifestInfo to downloadManifestSuspend(manifestInfo)
+        return manifestInfo to downloadManifestSuspend(manifestInfo, readFileHashes, readInstallTags, readHashList)
     }
 
     /**
@@ -176,8 +177,8 @@ class LauncherManifestDownloader {
      * @param game The game to download the info and manifest of
      * @return a pair of both, the launcher's info response and the downloaded and parse manifest
      */
-    fun downloadManifest(platform: Platform, game: Game) =
-        runBlocking { downloadManifestSuspend(platform, game) }
+    fun downloadManifest(platform: Platform, game: Game, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) =
+        runBlocking { downloadManifestSuspend(platform, game, readFileHashes, readInstallTags, readHashList) }
 
     /**
      * Downloads the current manifest info using the v2 endpoint for passed platform and game and downloads it without blocking the current thread
@@ -186,9 +187,9 @@ class LauncherManifestDownloader {
      * @param clientDetails The details of your client
      * @return a pair of both, the launcher's info response and the downloaded and parse manifest
      */
-    suspend fun downloadMobileManifestSuspend(platform: Platform, game: Game, clientDetails: ClientDetails): Pair<BuildResponse, Manifest> {
+    suspend fun downloadMobileManifestSuspend(platform: Platform, game: Game, clientDetails: ClientDetails, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false): Pair<BuildResponse, Manifest> {
         val manifestInfo = getMobileManifestInfoSuspend(platform, game, clientDetails)
-        return manifestInfo to downloadManifestSuspend(manifestInfo)
+        return manifestInfo to downloadManifestSuspend(manifestInfo, readFileHashes, readInstallTags, readHashList)
     }
 
     /**
@@ -198,8 +199,8 @@ class LauncherManifestDownloader {
      * @param clientDetails The details of your client
      * @return a pair of both, the launcher's info response and the downloaded and parse manifest
      */
-    fun downloadMobileManifest(platform: Platform, game: Game, clientDetails: ClientDetails) =
-        runBlocking { downloadMobileManifestSuspend(platform, game, clientDetails) }
+    fun downloadMobileManifest(platform: Platform, game: Game, clientDetails: ClientDetails, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) =
+        runBlocking { downloadMobileManifestSuspend(platform, game, clientDetails, readFileHashes, readInstallTags, readHashList) }
 
     /**
      * Shortcut that uses the ManifestLoader and downloads the passed info's manifest without blocking the current thread
@@ -208,8 +209,8 @@ class LauncherManifestDownloader {
      *
      * @see ManifestLoader.downloadManifest
      */
-    suspend fun downloadManifestSuspend(manifestInfo : ManifestInfoResponse) =
-        ManifestLoader.downloadManifestSuspend(manifestInfo)
+    suspend fun downloadManifestSuspend(manifestInfo : ManifestInfoResponse, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) =
+        ManifestLoader.downloadManifestSuspend(manifestInfo, readFileHashes, readInstallTags, readHashList)
 
     /**
      * Shortcut that uses the ManifestLoader and downloads the passed info's manifest
@@ -218,8 +219,8 @@ class LauncherManifestDownloader {
      *
      * @see ManifestLoader.downloadManifest
      */
-    fun downloadManifest(manifestInfo : ManifestInfoResponse) =
-        ManifestLoader.downloadManifest(manifestInfo)
+    fun downloadManifest(manifestInfo : ManifestInfoResponse, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) =
+        ManifestLoader.downloadManifest(manifestInfo, readFileHashes, readInstallTags, readHashList)
 
     /**
      * Shortcut that uses the ManifestLoader and downloads the passed info's manifest without blocking the current thread
@@ -228,8 +229,8 @@ class LauncherManifestDownloader {
      *
      * @see ManifestLoader.downloadManifest
      */
-    suspend fun downloadManifestSuspend(manifestInfo : BuildResponse) =
-        ManifestLoader.downloadManifestSuspend(manifestInfo)
+    suspend fun downloadManifestSuspend(manifestInfo : BuildResponse, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) =
+        ManifestLoader.downloadManifestSuspend(manifestInfo, readFileHashes, readInstallTags, readHashList)
 
     /**
      * Shortcut that uses the ManifestLoader and downloads the passed info's manifest
@@ -238,6 +239,6 @@ class LauncherManifestDownloader {
      *
      * @see ManifestLoader.downloadManifest
      */
-    fun downloadManifest(manifestInfo : BuildResponse) =
-        ManifestLoader.downloadManifest(manifestInfo)
+    fun downloadManifest(manifestInfo : BuildResponse, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) =
+        ManifestLoader.downloadManifest(manifestInfo, readFileHashes, readInstallTags, readHashList)
 }

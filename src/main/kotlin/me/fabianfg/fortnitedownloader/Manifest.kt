@@ -34,7 +34,7 @@ class Manifest {
     val chunkManifestList : List<Chunk>
     val fileManifestList : List<FileManifest>
 
-    private constructor(json: String, cloudDir: String, readOptionalValues : Boolean) {
+    private constructor(json: String, cloudDir: String, readFileHashes : Boolean, readInstallTags : Boolean, readHashList : Boolean) {
         val reader = JsonReader(json.reader())
         reader.beginObject()
         val chunkManifestList = LinkedList<Chunk>()
@@ -71,7 +71,8 @@ class Manifest {
                         fileManifestList.add(
                             FileManifest(
                                 reader,
-                                readOptionalValues
+                                readFileHashes,
+                                readInstallTags
                             )
                         )
                     }
@@ -98,7 +99,7 @@ class Manifest {
                     }
                     reader.endObject()
                 }
-                "ChunkShaList" -> if (readOptionalValues) {
+                "ChunkShaList" -> if (readHashList) {
                     reader.beginObject()
                     if (chunkManifestList.isEmpty()) {
                         while (reader.peek() != JsonToken.END_OBJECT) {
@@ -155,7 +156,7 @@ class Manifest {
     }
 
     @Suppress("EXPERIMENTAL_API_USAGE", "EXPERIMENTAL_UNSIGNED_LITERALS")
-    private constructor(buffer : ByteBuffer, manifestUrl: String, readOptionalValues : Boolean) {
+    private constructor(buffer : ByteBuffer, manifestUrl: String, readFileHashes : Boolean, readInstallTags : Boolean, readHashList : Boolean) {
         val reader = FByteArchive(buffer)
         val headerSize = reader.readInt32()
         val dataSizeUncompressed = reader.readInt32()
@@ -236,7 +237,7 @@ class Manifest {
                 chunkManifestLookup[chunkManifestList[i].guid] = i
             }
             for (c in chunkManifestList) { c.hash = manifestData.readInt64() }
-            if (readOptionalValues)
+            if (readHashList)
                 for (c in chunkManifestList) { c.shaHash = manifestData.read(20) }
             else
                 manifestData.skip(count * 20L)
@@ -263,12 +264,12 @@ class Manifest {
                 )
             ) }
             for (i in 0 until count) { manifestData.readString() } // SymlinkTarget
-            if (readOptionalValues)
+            if (readFileHashes)
                 for (i in 0 until count) { fileManifestList[i].shaHash = manifestData.read(20) }
             else
                 manifestData.skip(count * 20L)
             manifestData.skip(count.toLong()) // FileMetaFlags
-            if (readOptionalValues)
+            if (readInstallTags)
                 for (i in 0 until count) { fileManifestList[i].installTags = manifestData.readTArray { manifestData.readString() }.toList() }
             else
                 for (i in 0 until count) { manifestData.readTArray { manifestData.readString() } } // InstallTags
@@ -316,18 +317,18 @@ class Manifest {
         @JvmStatic
         @JvmOverloads
         @Suppress("EXPERIMENTAL_API_USAGE", "EXPERIMENTAL_UNSIGNED_LITERALS")
-        fun parse(data: ByteArray, url : String, readOptionalValues: Boolean = false) : Manifest {
+        fun parse(data: ByteArray, url : String, readFileHashes : Boolean = false, readInstallTags : Boolean = false, readHashList : Boolean = false) : Manifest {
             var cloudDir = url.replace('\\', '/')
             if (cloudDir.substringAfterLast('/').substringBeforeLast('?').endsWith(".manifest"))
                 cloudDir = cloudDir.substringBeforeLast('/')
             val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
             return if (buffer.int.toUInt() == 0x44BEC00Cu)
-                Manifest(buffer, cloudDir, readOptionalValues)
+                Manifest(buffer, cloudDir, readFileHashes, readInstallTags, readHashList)
             else
                 Manifest(
                     String(data),
                     cloudDir,
-                    readOptionalValues
+                    readFileHashes, readInstallTags, readHashList
                 )
         }
     }
