@@ -120,7 +120,7 @@ After that you can just use it exactly like the DefaultFileProvider described in
 - Add the repository
 ```groovy
 repositories {
-	maven { url "https://jitpack.io" }
+	maven { url 'https://jitpack.io' }
 }
 ```
 - Add the dependency

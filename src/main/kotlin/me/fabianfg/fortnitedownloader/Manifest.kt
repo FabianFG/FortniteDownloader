@@ -3,15 +3,11 @@ package me.fabianfg.fortnitedownloader
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import me.fungames.jfortniteparse.compression.Compression
-import me.fungames.jfortniteparse.ue4.pak.CompressionMethod
 import me.fungames.jfortniteparse.ue4.reader.FByteArchive
 import me.fungames.jfortniteparse.util.printHexBinary
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
-import kotlin.collections.ArrayList
-import kotlin.collections.HashMap
-
 
 class Manifest {
     lateinit var featureLevel : EFeatureLevel
