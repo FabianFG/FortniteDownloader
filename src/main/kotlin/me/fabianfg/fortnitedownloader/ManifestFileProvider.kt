@@ -112,10 +112,11 @@ class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: Typ
                     val utocAr = utoc.openPakArchive(mountedBuild, game)
                     val utocByteAr = FByteArchive(utocAr.read(utocAr.size()))
                     ioStoreReader.initialize(utocByteAr, ucas.openPakArchive(mountedBuild, game), keys)
-                    ioStoreReader.getFiles().associateByTo(files) { it.path.toLowerCase() }
+                    ioStoreReader.files.associateByTo(files) { it.path.toLowerCase() }
                     mountedIoStoreReaders.add(ioStoreReader)
-                    globalPackageStore.onContainerMounted(FIoDispatcherMountedContainer(ioStoreReader.environment, ioStoreReader.containerId))
-                    PakFileReader.logger.info("Mounted IoStore environment \"{}\"", ioStoreReader.environment.path)
+                    if (globalPackageStore.isInitialized()) {
+                        globalPackageStore.value.onContainerMounted(ioStoreReader.containerId)
+                    }
                 } catch (e: FIoStatusException) {
                     PakFileReader.logger.warn("Failed to mount IoStore environment \"{}\" [{}]", utocName, e.message)
                 }
