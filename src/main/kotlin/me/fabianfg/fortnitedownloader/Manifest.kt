@@ -171,7 +171,7 @@ class Manifest {
         if (storedAs and 0x01 != 0) {
             // compressed
             val compressed = reader.read(dataSizeCompressed)
-            Compression.uncompressMemory("Zlib", compressed, data)
+            Compression.uncompressMemory("Zlib", data, compressed)
         } else {
             reader.read(data)
         }
