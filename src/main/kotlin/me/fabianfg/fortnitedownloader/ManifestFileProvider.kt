@@ -14,7 +14,6 @@ import me.fungames.jfortniteparse.ue4.pak.reader.FPakFileArchive
 import me.fungames.jfortniteparse.ue4.reader.FByteArchive
 import me.fungames.jfortniteparse.ue4.versions.Ue4Version
 import java.io.File
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -98,7 +97,7 @@ class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: Typ
 
     override fun mount(reader: PakFileReader) {
         reader.readIndex()
-        reader.files.associateByTo(files) { file -> file.path.lowercase(Locale.getDefault()) }
+        reader.files.associateByTo(files, {file -> file.path.toLowerCase()})
         mountedPaks.add(reader)
 
         if (globalDataLoaded) {
@@ -113,10 +112,11 @@ class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: Typ
                     val utocAr = utoc.openPakArchive(mountedBuild, game)
                     val utocByteAr = FByteArchive(utocAr.read(utocAr.size()))
                     ioStoreReader.initialize(utocByteAr, ucas.openPakArchive(mountedBuild, game), keys)
-                    ioStoreReader.files.associateByTo(files) { it.path.lowercase(Locale.getDefault()) }
+                    ioStoreReader.files.associateByTo(files) { it.path.toLowerCase() }
                     mountedIoStoreReaders.add(ioStoreReader)
-                    globalPackageStore.value.onContainerMounted(FIoDispatcherMountedContainer(ioStoreReader.environment, ioStoreReader.containerId))
-                    PakFileReader.logger.info("Mounted IoStore environment \"{}\"", ioStoreReader.environment.path)
+                    if (globalPackageStore.isInitialized()) {
+                        globalPackageStore.value.onContainerMounted(ioStoreReader.containerId)
+                    }
                 } catch (e: FIoStatusException) {
                     PakFileReader.logger.warn("Failed to mount IoStore environment \"{}\" [{}]", utocName, e.message)
                 }

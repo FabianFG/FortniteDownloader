@@ -103,16 +103,15 @@ After that you can just use it exactly like the DefaultFileProvider described in
 ```xml
 <repositories>
 	<repository>
-		<id>bintray-fungamesleaks-mavenRepo</id>
-		<name>bintray</name>
-		<url>https://dl.bintray.com/fungamesleaks/mavenRepo</url>
+		<id>jitpack.io</id>
+		<url>https://jitpack.io</url>
 	</repository>
 </repositories>
 ```
 - Add the dependency
 ```xml
 <dependency>
-	<groupId>me.fabianfg</groupId>
+	<groupId>com.github.FabianFG</groupId>
 	<artifactId>FortniteDownloader</artifactId>
 	<version>1.7.1</version>
 </dependency>
@@ -121,14 +120,12 @@ After that you can just use it exactly like the DefaultFileProvider described in
 - Add the repository
 ```groovy
 repositories {
-	maven {
-		url  "https://dl.bintray.com/fungamesleaks/mavenRepo"
-	}
+	maven { url "https://jitpack.io" }
 }
 ```
 - Add the dependency
 ```groovy
-implementation 'me.fabianfg:FortniteDownloader:1.7.1'
+implementation 'com.github.FabianFG:FortniteDownloader:1.7.1'
 ```
 
 ### Credits
