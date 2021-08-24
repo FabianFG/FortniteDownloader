@@ -87,7 +87,7 @@ from the game files while just downloading the chunks needed
 ```kotlin
 val provider = ManifestFileProvider(
             mountedBuild,
-            paksToSkip = emptyList(),
+            paksFilter = { true }, // predicate to tell if a file should be loaded or not, `it` is the file name
             localFilesFolder = File("localFiles"), // can also just be null
             versions = VersionContainer.DEFAULT, // default value uses the latest supported UE version
             concurrent = true // set to true if thread-safety is needed

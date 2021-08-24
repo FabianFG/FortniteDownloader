@@ -4,8 +4,8 @@ plugins {
     id 'org.jetbrains.dokka' version '0.10.0'
 }
 
-group 'me.fabianfg'
-version '1.7.3'
+group 'com.github.FabianFG'
+version '1.7.4'
 
 sourceCompatibility = 1.8
 
