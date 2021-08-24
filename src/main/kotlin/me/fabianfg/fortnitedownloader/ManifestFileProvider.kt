@@ -4,15 +4,12 @@ import kotlinx.coroutines.launch
 import me.fungames.jfortniteparse.fileprovider.PakFileProvider
 import me.fungames.jfortniteparse.ue4.assets.mappings.ReflectionTypeMappingsProvider
 import me.fungames.jfortniteparse.ue4.assets.mappings.TypeMappingsProvider
-import me.fungames.jfortniteparse.ue4.assets.mappings.UsmapTypeMappingsProvider
 import me.fungames.jfortniteparse.ue4.io.*
 import me.fungames.jfortniteparse.ue4.objects.core.misc.FGuid
-import me.fungames.jfortniteparse.ue4.locres.Locres
 import me.fungames.jfortniteparse.ue4.pak.GameFile
 import me.fungames.jfortniteparse.ue4.pak.PakFileReader
-import me.fungames.jfortniteparse.ue4.pak.reader.FPakFileArchive
 import me.fungames.jfortniteparse.ue4.reader.FByteArchive
-import me.fungames.jfortniteparse.ue4.versions.Ue4Version
+import me.fungames.jfortniteparse.ue4.versions.VersionContainer
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -32,7 +29,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * @param concurrent If true this file provider will be thread-safe by creating a copy of each FPakArchive before each operation. Use true if you plan to use any multithreading
  */
 @Suppress("EXPERIMENTAL_API_USAGE")
-class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: TypeMappingsProvider = ReflectionTypeMappingsProvider(), paksFilter: (fileName: String) -> Boolean = { true }, val localFilesFolder: File? = null, override var game: Ue4Version = Ue4Version.GAME_UE4_LATEST, concurrent: Boolean): PakFileProvider() {
+class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: TypeMappingsProvider = ReflectionTypeMappingsProvider(), paksFilter: (fileName: String) -> Boolean = { true }, val localFilesFolder: File? = null, override var versions: VersionContainer = VersionContainer.DEFAULT, concurrent: Boolean): PakFileProvider() {
     override val files = ConcurrentHashMap<String, GameFile>()
     override val keys = ConcurrentHashMap<FGuid, ByteArray>()
     override val mountedIoStoreReaders = CopyOnWriteArrayList<FIoStoreReaderImpl>()
@@ -60,7 +57,7 @@ class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: Typ
                 it.fileName.startsWith("FortniteGame/Content/Paks", true) &&
                 paksFilter(it.fileName) }.forEach {
             try {
-                val reader = PakFileReader(it.openPakArchive(mountedBuild, game))
+                val reader = PakFileReader(it.openPakArchive(mountedBuild, versions))
                 if (!reader.isEncrypted()) {
                     launch {
                         mount(reader)
@@ -77,7 +74,7 @@ class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: Typ
         localFilesFolder?.walkTopDown()?.forEach {
             if (it.isFile && it.extension.equals("pak", true)) {
                 try {
-                    val reader = PakFileReader(it, game.game)
+                    val reader = PakFileReader(it, versions)
                     if (!reader.isEncrypted()) {
                         launch {
                             mount(reader)
@@ -109,9 +106,9 @@ class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: Typ
                 try {
                     val ioStoreReader = FIoStoreReaderImpl()
                     ioStoreReader.concurrent = reader.concurrent
-                    val utocAr = utoc.openPakArchive(mountedBuild, game)
+                    val utocAr = utoc.openPakArchive(mountedBuild, versions)
                     val utocByteAr = FByteArchive(utocAr.read(utocAr.size()))
-                    ioStoreReader.initialize(utocByteAr, ucas.openPakArchive(mountedBuild, game), keys)
+                    ioStoreReader.initialize(utocByteAr, ucas.openPakArchive(mountedBuild, versions), keys)
                     ioStoreReader.files.associateByTo(files) { it.path.toLowerCase() }
                     mountedIoStoreReaders.add(ioStoreReader)
                     if (globalPackageStore.isInitialized()) {
@@ -132,7 +129,7 @@ class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: Typ
             globalDataLoaded = true
             try {
                 val ioStoreReader = FIoStoreReaderImpl()
-                ioStoreReader.initialize(utoc.openPakArchive(mountedBuild, game), ucas.openPakArchive(mountedBuild, game), keys)
+                ioStoreReader.initialize(utoc.openPakArchive(mountedBuild, versions), ucas.openPakArchive(mountedBuild, versions), keys)
                 mountedIoStoreReaders.add(ioStoreReader)
                 PakFileReader.logger.info("Initialized I/O dispatcher")
             } catch (e: FIoStatusException) {

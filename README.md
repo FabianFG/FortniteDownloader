@@ -89,7 +89,7 @@ val provider = ManifestFileProvider(
             mountedBuild,
             paksToSkip = emptyList(),
             localFilesFolder = File("localFiles"), // can also just be null
-            game = Ue4Version.GAME_UE4_LATEST,
+            versions = VersionContainer.DEFAULT, // default value uses the latest supported UE version
             concurrent = true // set to true if thread-safety is needed
         )
 provider.submitKey(FGuid.mainGuid, "0x...")

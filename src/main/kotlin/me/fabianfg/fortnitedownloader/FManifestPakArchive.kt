@@ -3,14 +3,14 @@ package me.fabianfg.fortnitedownloader
 import me.fungames.jfortniteparse.exceptions.ParserException
 import me.fungames.jfortniteparse.ue4.pak.objects.FPakInfo
 import me.fungames.jfortniteparse.ue4.pak.reader.FPakArchive
-import me.fungames.jfortniteparse.ue4.versions.Ue4Version
+import me.fungames.jfortniteparse.ue4.versions.VersionContainer
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-fun FileManifest.openPakArchive(build: MountedBuild, game : Ue4Version) = FManifestPakArchive(
+fun FileManifest.openPakArchive(build: MountedBuild, versions : VersionContainer) = FManifestPakArchive(
     this,
     build
-).apply { this.game = game.game; this.ver = game.version }
+).apply { this.versions = versions }
 
 /**
  * Class implementing an FPakArchive reading from a manifest
