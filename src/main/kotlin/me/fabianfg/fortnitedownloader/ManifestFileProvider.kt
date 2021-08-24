@@ -32,7 +32,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * @param concurrent If true this file provider will be thread-safe by creating a copy of each FPakArchive before each operation. Use true if you plan to use any multithreading
  */
 @Suppress("EXPERIMENTAL_API_USAGE")
-class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: TypeMappingsProvider = ReflectionTypeMappingsProvider(), paksToSkip : List<String> = emptyList(), val localFilesFolder : File? = null, override var game : Ue4Version = Ue4Version.GAME_UE4_LATEST, concurrent : Boolean) : PakFileProvider() {
+class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: TypeMappingsProvider = ReflectionTypeMappingsProvider(), paksFilter: (fileName: String) -> Boolean = { true }, val localFilesFolder: File? = null, override var game: Ue4Version = Ue4Version.GAME_UE4_LATEST, concurrent: Boolean): PakFileProvider() {
     override val files = ConcurrentHashMap<String, GameFile>()
     override val keys = ConcurrentHashMap<FGuid, ByteArray>()
     override val mountedIoStoreReaders = CopyOnWriteArrayList<FIoStoreReaderImpl>()
@@ -58,7 +58,7 @@ class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: Typ
         }
         mountedBuild.manifest.fileManifestList.filter { it.fileName.endsWith(".pak", true) &&
                 it.fileName.startsWith("FortniteGame/Content/Paks", true) &&
-                !paksToSkip.contains(it.fileName) }.forEach {
+                paksFilter(it.fileName) }.forEach {
             try {
                 val reader = PakFileReader(it.openPakArchive(mountedBuild, game))
                 if (!reader.isEncrypted()) {
