@@ -5,11 +5,12 @@ plugins {
 }
 
 group 'com.github.FabianFG'
-version '1.7.5'
+version '1.7.6'
 
 sourceCompatibility = 1.8
 
 repositories {
+    google()
     mavenCentral()
     maven { url 'https://jitpack.io' }
 }
@@ -40,15 +41,10 @@ publishing {
 dependencies {
     implementation 'com.github.FabianFG:Fortnite-Api:master-SNAPSHOT'
     implementation 'com.github.FabianFG:JFortniteParse:master-SNAPSHOT'
-    implementation 'com.google.code.gson:gson:2.8.7'
-    implementation 'com.squareup.okhttp3:okhttp:4.9.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.9.3'
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
-    implementation 'io.github.microutils:kotlin-logging:2.0.10'
-    implementation 'org.apache.logging.log4j:log4j-core:2.14.1'
-    implementation 'org.apache.logging.log4j:log4j-slf4j-impl:2.14.1'
     implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.1'
 }
 
 compileKotlin {

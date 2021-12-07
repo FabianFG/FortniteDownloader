@@ -1,6 +1,5 @@
 package me.fabianfg.fortnitedownloader
 
-import kotlinx.coroutines.launch
 import me.fungames.jfortniteparse.fileprovider.PakFileProvider
 import me.fungames.jfortniteparse.ue4.assets.mappings.ReflectionTypeMappingsProvider
 import me.fungames.jfortniteparse.ue4.assets.mappings.TypeMappingsProvider
@@ -10,6 +9,7 @@ import me.fungames.jfortniteparse.ue4.pak.GameFile
 import me.fungames.jfortniteparse.ue4.pak.PakFileReader
 import me.fungames.jfortniteparse.ue4.reader.FByteArchive
 import me.fungames.jfortniteparse.ue4.versions.VersionContainer
+import me.fungames.jfortniteparse.ue4.vfs.AbstractAesVfsReader
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -29,114 +29,95 @@ import java.util.concurrent.CopyOnWriteArrayList
  * @param concurrent If true this file provider will be thread-safe by creating a copy of each FPakArchive before each operation. Use true if you plan to use any multithreading
  */
 @Suppress("EXPERIMENTAL_API_USAGE")
-class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: TypeMappingsProvider = ReflectionTypeMappingsProvider(), paksFilter: (fileName: String) -> Boolean = { true }, val localFilesFolder: File? = null, override var versions: VersionContainer = VersionContainer.DEFAULT, concurrent: Boolean): PakFileProvider() {
+open class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider: TypeMappingsProvider = ReflectionTypeMappingsProvider(), paksFilter: (fileName: String) -> Boolean = { true }, val localFilesFolder: File? = null, override var versions: VersionContainer = VersionContainer.DEFAULT, concurrent: Boolean): PakFileProvider() {
     override val files = ConcurrentHashMap<String, GameFile>()
     override val keys = ConcurrentHashMap<FGuid, ByteArray>()
-    override val mountedIoStoreReaders = CopyOnWriteArrayList<FIoStoreReaderImpl>()
-    override val mountedPaks = CopyOnWriteArrayList<PakFileReader>()
+    override val mountedPaks = CopyOnWriteArrayList<AbstractAesVfsReader>()
     override val requiredKeys = CopyOnWriteArrayList<FGuid>()
-    override val unloadedPaks = CopyOnWriteArrayList<PakFileReader>()
+    override val unloadedPaks = CopyOnWriteArrayList<AbstractAesVfsReader>()
 
     var concurrent : Boolean = concurrent
         set(value) {
             unloadedPaks.forEach { it.concurrent = value }
             mountedPaks.forEach { it.concurrent = value }
-            mountedIoStoreReaders.forEach { it.concurrent = value }
             field = value
         }
 
     init {
         this.mappingsProvider = mappingsProvider
-        if (!globalDataLoaded) {
-            val globalUtoc = mountedBuild.manifest.fileManifestList.firstOrNull { it.fileName == "FortniteGame/Content/Paks/global.utoc" }
-            val globalUcas = mountedBuild.manifest.fileManifestList.firstOrNull { it.fileName == "FortniteGame/Content/Paks/global.ucas" }
-            if (globalUtoc != null && globalUcas != null)
-                loadGlobalData(globalUtoc, globalUcas)
-        }
-        mountedBuild.manifest.fileManifestList.filter { it.fileName.endsWith(".pak", true) &&
-                it.fileName.startsWith("FortniteGame/Content/Paks", true) &&
-                paksFilter(it.fileName) }.forEach {
-            try {
-                val reader = PakFileReader(it.openPakArchive(mountedBuild, versions))
-                if (!reader.isEncrypted()) {
-                    launch {
-                        mount(reader)
-                    }
-                } else {
-                    unloadedPaks.add(reader)
-                    if (!requiredKeys.contains(reader.pakInfo.encryptionKeyGuid))
-                        requiredKeys.add(reader.pakInfo.encryptionKeyGuid)
-                }
-            } catch (e : Exception) {
-                logger.error(e) { "Uncaught exception while open pak reader ${it.fileName.substringAfterLast("/")}" }
-            }
-        }
-        localFilesFolder?.walkTopDown()?.forEach {
-            if (it.isFile && it.extension.equals("pak", true)) {
+        for (it in mountedBuild.manifest.fileManifestList) {
+            if (!it.fileName.startsWith("FortniteGame/Content/Paks", true) || !paksFilter(it.fileName)) continue
+            val ext = it.fileName.substringAfterLast(".")
+            if (ext == "pak") {
                 try {
-                    val reader = PakFileReader(it, versions)
-                    if (!reader.isEncrypted()) {
-                        launch {
-                            mount(reader)
-                        }
-                    } else {
-                        unloadedPaks.add(reader)
-                        if (!requiredKeys.contains(reader.pakInfo.encryptionKeyGuid))
-                            requiredKeys.add(reader.pakInfo.encryptionKeyGuid)
+                    val reader = PakFileReader(it.openPakArchive(mountedBuild, versions))
+                    reader.customEncryption = customEncryption
+                    if (reader.isEncrypted()) {
+                        requiredKeys.addIfAbsent(reader.pakInfo.encryptionKeyGuid)
                     }
-                } catch (e : Exception) {
-                    logger.error(e) { "Uncaught exception while opening local pak reader ${it.name}" }
+                    unloadedPaks.add(reader)
+                } catch (e: Exception) {
+                    logger.error("Failed to open pak file \"${it.fileName}\"", e)
+                }
+            } else if (ext == "utoc") {
+                val path = it.fileName.substringBeforeLast('.')
+                try {
+                    val utocAr = it.openPakArchive(mountedBuild, versions)
+                    val utocByteAr = FByteArchive(utocAr.read(utocAr.size()))
+                    val ucasName = "$path.ucas"
+                    val ucas = mountedBuild.manifest.fileManifestList.firstOrNull { it.fileName == ucasName }
+                    val reader = FIoStoreReaderImpl(utocByteAr, ucas!!.openPakArchive(mountedBuild, versions))
+                    reader.customEncryption = customEncryption
+                    if (reader.isEncrypted()) {
+                        requiredKeys.addIfAbsent(reader.encryptionKeyGuid)
+                    }
+                    unloadedPaks.add(reader)
+                } catch (e: Exception) {
+                    logger.error("Failed to open IoStore environment \"$path\"", e)
                 }
             }
         }
+        localFilesFolder?.let { scanFiles(it) }
         this.concurrent = concurrent
     }
 
-    override fun mount(reader: PakFileReader) {
-        reader.readIndex()
-        reader.files.associateByTo(files, {file -> file.path.toLowerCase()})
-        mountedPaks.add(reader)
-
-        if (globalDataLoaded) {
-            val utocName = reader.fileName.replace(".pak", ".utoc")
-            val ucasName = reader.fileName.replace(".pak", ".ucas")
-            val utoc = mountedBuild.manifest.fileManifestList.firstOrNull { it.fileName == utocName }
-            val ucas = mountedBuild.manifest.fileManifestList.firstOrNull { it.fileName == ucasName }
-            if (utoc != null && ucas != null) {
-                try {
-                    val ioStoreReader = FIoStoreReaderImpl()
-                    ioStoreReader.concurrent = reader.concurrent
-                    val utocAr = utoc.openPakArchive(mountedBuild, versions)
-                    val utocByteAr = FByteArchive(utocAr.read(utocAr.size()))
-                    ioStoreReader.initialize(utocByteAr, ucas.openPakArchive(mountedBuild, versions), keys)
-                    ioStoreReader.files.associateByTo(files) { it.path.toLowerCase() }
-                    mountedIoStoreReaders.add(ioStoreReader)
-                    if (globalPackageStore.isInitialized()) {
-                        globalPackageStore.value.onContainerMounted(ioStoreReader)
-                    }
-                } catch (e: FIoStatusException) {
-                    PakFileReader.logger.warn("Failed to mount IoStore environment \"{}\" [{}]", utocName, e.message)
-                }
+    // Duplicate of the ones in DefaultFileProvider
+    private fun scanFiles(folder: File) {
+        for (file in folder.listFiles() ?: emptyArray()) {
+            if (file.isDirectory) {
+                scanFiles(file)
+            } else if (file.isFile) {
+                registerFile(file)
             }
         }
-
-        mountListeners.forEach { it.onMount(reader) }
     }
 
-
-    private fun loadGlobalData(utoc : FileManifest, ucas : FileManifest) {
-        try {
-            globalDataLoaded = true
+    private fun registerFile(file: File) {
+        val ext = file.extension.toLowerCase()
+        if (ext == "pak") {
             try {
-                val ioStoreReader = FIoStoreReaderImpl()
-                ioStoreReader.initialize(utoc.openPakArchive(mountedBuild, versions), ucas.openPakArchive(mountedBuild, versions), keys)
-                mountedIoStoreReaders.add(ioStoreReader)
-                PakFileReader.logger.info("Initialized I/O dispatcher")
-            } catch (e: FIoStatusException) {
-                PakFileReader.logger.error("Failed to mount I/O dispatcher global environment: '{}'", e.message)
+                val reader = PakFileReader(file, versions)
+                reader.customEncryption = customEncryption
+                if (reader.isEncrypted()) {
+                    requiredKeys.addIfAbsent(reader.encryptionKeyGuid)
+                }
+                unloadedPaks.add(reader)
+            } catch (e: Exception) {
+                logger.error("Failed to open pak file \"${file.path}\"", e)
             }
-        } catch (e: FIoStatusException) {
-            PakFileReader.logger.error("Failed to initialize I/O dispatcher: '{}'", e.message)
+        } else if (ext == "utoc") {
+            val path = file.path.substringBeforeLast('.')
+            try {
+                val reader = FIoStoreReaderImpl(path, ioStoreTocReadOptions, versions)
+                reader.customEncryption = customEncryption
+                if (reader.isEncrypted()) {
+                    requiredKeys.addIfAbsent(reader.encryptionKeyGuid)
+                }
+                unloadedPaks.add(reader)
+            } catch (e: Exception) {
+                logger.error("Failed to open IoStore environment \"$path\"", e)
+            }
         }
+        // We don't handle other file types
     }
 }
