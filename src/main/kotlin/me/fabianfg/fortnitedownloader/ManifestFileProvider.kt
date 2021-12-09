@@ -66,7 +66,7 @@ open class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider
                     val utocByteAr = FByteArchive(utocAr.read(utocAr.size()))
                     val ucasName = "$path.ucas"
                     val ucas = mountedBuild.manifest.fileManifestList.firstOrNull { it.fileName == ucasName }
-                    val reader = FIoStoreReaderImpl(utocByteAr, ucas!!.openPakArchive(mountedBuild, versions))
+                    val reader = FIoStoreReaderImpl(utocByteAr, ucas!!.openPakArchive(mountedBuild, versions), ioStoreTocReadOptions)
                     reader.customEncryption = customEncryption
                     if (reader.isEncrypted()) {
                         requiredKeys.addIfAbsent(reader.encryptionKeyGuid)
