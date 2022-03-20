@@ -45,28 +45,29 @@ open class ManifestFileProvider(val mountedBuild: MountedBuild, mappingsProvider
 
     init {
         this.mappingsProvider = mappingsProvider
-        for (it in mountedBuild.manifest.fileManifestList) {
-            if (!it.fileName.startsWith("FortniteGame/Content/Paks", true) || !paksFilter(it.fileName)) continue
-            val ext = it.fileName.substringAfterLast(".")
+        for (file in mountedBuild.manifest.fileManifestList) {
+            if (!file.fileName.startsWith("FortniteGame/Content/Paks", true) || !paksFilter(file.fileName)) continue
+            val ext = file.fileName.substringAfterLast(".")
             if (ext == "pak") {
                 try {
-                    val reader = PakFileReader(it.openPakArchive(mountedBuild, versions))
+                    val reader = PakFileReader(file.openPakArchive(mountedBuild, versions))
                     reader.customEncryption = customEncryption
                     if (reader.isEncrypted()) {
                         requiredKeys.addIfAbsent(reader.pakInfo.encryptionKeyGuid)
                     }
                     unloadedPaks.add(reader)
                 } catch (e: Exception) {
-                    logger.error("Failed to open pak file \"${it.fileName}\"", e)
+                    logger.error("Failed to open pak file \"${file.fileName}\"", e)
                 }
             } else if (ext == "utoc") {
-                val path = it.fileName.substringBeforeLast('.')
+                val path = file.fileName.substringBeforeLast('.')
                 try {
-                    val utocAr = it.openPakArchive(mountedBuild, versions)
+                    val utocAr = file.openPakArchive(mountedBuild, versions)
                     val utocByteAr = FByteArchive(utocAr.read(utocAr.size()))
-                    val ucasName = "$path.ucas"
-                    val ucas = mountedBuild.manifest.fileManifestList.firstOrNull { it.fileName == ucasName }
-                    val reader = FIoStoreReaderImpl(utocByteAr, ucas!!.openPakArchive(mountedBuild, versions), ioStoreTocReadOptions)
+                    val reader = FIoStoreReaderImpl(utocByteAr, path, { ucasPath ->
+                        val ucas = mountedBuild.manifest.fileManifestList.first { it.fileName == ucasPath }
+                        ucas.openPakArchive(mountedBuild, versions)
+                    }, ioStoreTocReadOptions)
                     reader.customEncryption = customEncryption
                     if (reader.isEncrypted()) {
                         requiredKeys.addIfAbsent(reader.encryptionKeyGuid)
